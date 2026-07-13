@@ -28,6 +28,67 @@ export function ConfigPanel({
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleExportConfig = () => {
+    try {
+      const dataStr = JSON.stringify(config, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gasConfig.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export config failed', err);
+      alert('Gagal mengekspor konfigurasi: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleImportClick = () => {
+    importFileRef.current?.click();
+  };
+
+  const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      // Basic validation
+      if (!parsed) throw new Error('File JSON kosong atau tidak valid');
+      onChange(parsed as any);
+
+      // If possible, attempt to persist imported config to GAS (best-effort)
+      if (parsed.gasUrl && parsed.sheetId) {
+        try {
+          await saveSettingsToGas(parsed as any, {
+            libraryName: parsed.libraryName || '',
+            libraryLogoUrl: parsed.libraryLogoUrl || '',
+            libraryLogoId: parsed.libraryLogoId || '',
+            ebookFolderId: parsed.ebookFolderId || '',
+            coverFolderId: parsed.coverFolderId || '',
+            sheetId: parsed.sheetId || '',
+            sheetIdOffline: parsed.sheetIdOffline || parsed.sheetId || '',
+            adminTimeoutMinutes: parsed.adminTimeoutMinutes !== undefined ? parsed.adminTimeoutMinutes : 15,
+            sliderItems: parsed.sliderItems ? JSON.stringify(parsed.sliderItems) : '',
+            showSlider: parsed.showSlider !== undefined ? String(parsed.showSlider) : 'true'
+          });
+        } catch (err) {
+          console.warn('Failed to save imported config to GAS', err);
+        }
+      }
+
+      alert('Konfigurasi berhasil diimpor. Halaman akan dimuat ulang untuk menerapkan perubahan.');
+      window.location.reload();
+    } catch (err) {
+      console.error('Import failed', err);
+      alert('Gagal mengimpor konfigurasi: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
 
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -576,6 +637,28 @@ export function ConfigPanel({
                 </>
               )}
             </button>
+
+            {/* Export / Import config */}
+            <input type="file" accept="application/json" ref={importFileRef} onChange={handleImportChange} className="hidden" />
+
+            <button
+              type="button"
+              onClick={handleExportConfig}
+              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-gray-200 text-gray-800 hover:text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5 text-gray-500" />
+              <span>Export Konfigurasi</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-gray-200 text-gray-800 hover:text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-gray-500" />
+              <span>Import Konfigurasi</span>
+            </button>
+
           </div>
 
           {saveStatus === 'success' && (
