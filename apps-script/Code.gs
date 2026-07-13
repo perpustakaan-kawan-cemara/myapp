@@ -41,29 +41,27 @@ function doPost(e) {
     function getOrCreateSheet(spreadsheet, sheetName) {
       var sheet = spreadsheet.getSheetByName(sheetName);
       if (!sheet) {
-        sheet = spreadsheet.insertSheet(sheetName);
-        if (sheetName === 'BookData') {
-          sheet.appendRow(['File ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan', 'Offline', 'Penulis', 'Penerbit', 'Tahun', 'Stok', 'Lokasi', 'URL Cover']);
-          sheet.getRange("A1:L1").setFontWeight("bold");
-        } else if (sheetName === 'EbookData') {
-          sheet.appendRow(['File ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan']);
-          sheet.getRange("A1:E1").setFontWeight("bold");
-        } else if (sheetName === 'PhysicalBookData') {
-          sheet.appendRow(['ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan', 'Offline', 'Penulis', 'Penerbit', 'Tahun', 'Stok', 'Lokasi', 'URL Cover']);
-          sheet.getRange("A1:L1").setFontWeight("bold");
-        } else if (sheetName === 'Logs') {
-          sheet.appendRow(['Timestamp', 'File ID', 'Nama Lama', 'Nama Baru', 'User Email']);
-          sheet.getRange("A1:L1").setFontWeight("bold");
-        } else if (sheetName === 'VisitorLogs') {
-          sheet.appendRow(['Timestamp', 'Nama Pengunjung', 'Jenis Kelamin', 'Tujuan', 'Status Member', 'User Agent', 'Kategori Usia', 'Pekerjaan']);
-          sheet.getRange("A1:H1").setFontWeight("bold");
-        } else if (sheetName === 'Config') {
-          sheet.appendRow(['Key', 'Value']);
-          sheet.getRange("A1:B1").setFontWeight("bold");
-        } else if (sheetName === 'BorrowLogs') {
-          sheet.appendRow(['Timestamp', 'Nama Peminjam', 'Jenis Kelamin', 'Alamat Peminjam', 'Nama Buku', 'Nomor Telepon', 'Tanggal Pinjam s/d Kembali', 'Status']);
-          sheet.getRange("A1:H1").setFontWeight("bold");
-        }
+      sheet = spreadsheet.insertSheet(sheetName);
+      // Create only the sheets actively used by the current system. Legacy 'BookData' sheet creation removed.
+      if (sheetName === 'EbookData') {
+        sheet.appendRow(['File ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan']);
+        sheet.getRange("A1:E1").setFontWeight("bold");
+      } else if (sheetName === 'PhysicalBookData') {
+        sheet.appendRow(['ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan', 'Offline', 'Penulis', 'Penerbit', 'Tahun', 'Stok', 'Lokasi', 'URL Cover']);
+        sheet.getRange("A1:L1").setFontWeight("bold");
+      } else if (sheetName === 'Logs') {
+        sheet.appendRow(['Timestamp', 'File ID', 'Nama Lama', 'Nama Baru', 'User Email']);
+        sheet.getRange("A1:E1").setFontWeight("bold");
+      } else if (sheetName === 'VisitorLogs') {
+        sheet.appendRow(['Timestamp', 'Nama Pengunjung', 'Jenis Kelamin', 'Tujuan', 'Status Member', 'User Agent', 'Kategori Usia', 'Pekerjaan']);
+        sheet.getRange("A1:H1").setFontWeight("bold");
+      } else if (sheetName === 'Config') {
+        sheet.appendRow(['Key', 'Value']);
+        sheet.getRange("A1:B1").setFontWeight("bold");
+      } else if (sheetName === 'BorrowLogs') {
+        sheet.appendRow(['Timestamp', 'Nama Peminjam', 'Jenis Kelamin', 'Alamat Peminjam', 'Nama Buku', 'Nomor Telepon', 'Tanggal Pinjam s/d Kembali', 'Status']);
+        sheet.getRange("A1:H1").setFontWeight("bold");
+      }
       }
       return sheet;
     }
@@ -287,32 +285,7 @@ function doPost(e) {
         }
       }
       
-      // Also try to read from legacy 'BookData' if it exists, to migrate
-      var legacySheet = spreadsheetOnline.getSheetByName('BookData');
-      if (legacySheet) {
-        var legacyValues = legacySheet.getDataRange().getValues();
-        if (legacyValues.length > 1) {
-          for (var i = 1; i < legacyValues.length; i++) {
-            var row = legacyValues[i];
-            if (!metadata[row[0]]) { // Only add if not already in new sheets
-              metadata[row[0]] = {
-                id: row[0],
-                status: row[1],
-                category: row[2],
-                title: row[3],
-                addedToCollectionAt: row[4],
-                isOffline: row[5] === true || row[5] === 'true' || row[5] === 'TRUE',
-                author: row[6] || '',
-                publisher: row[7] || '',
-                year: row[8] || '',
-                stock: row[9] || 0,
-                location: row[10] || '',
-                coverUrl: row[11] || ''
-              };
-            }
-          }
-        }
-      }
+      // Legacy 'BookData' migration removed — system uses 'EbookData' and 'PhysicalBookData' sheets now.
       
       return returnJson({
         success: true,

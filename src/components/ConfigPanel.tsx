@@ -110,6 +110,28 @@ export function ConfigPanel({
     onChange({ ...config, [name]: finalValue });
   };
 
+  // Auto-save certain lightweight settings (libraryName) to spreadsheet so all devices pick up the change
+  const lastSavedNameRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const name = config.libraryName || '';
+    if (!name) return;
+    if (lastSavedNameRef.current === name) return; // no change since last save
+
+    const handle = setTimeout(async () => {
+      try {
+        // Save minimal settings to spreadsheet so other devices can load libraryName
+        await saveSettingsToGas(config, {
+          libraryName: name
+        });
+        lastSavedNameRef.current = name;
+      } catch (err) {
+        console.warn('Auto-save libraryName failed', err);
+      }
+    }, 800);
+
+    return () => clearTimeout(handle);
+  }, [config.libraryName]);
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

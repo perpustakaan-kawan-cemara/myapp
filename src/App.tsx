@@ -11,12 +11,12 @@ import { Settings } from "./components/Settings";
 import { VisitorView } from "./components/VisitorView";
 import { UploadButton } from "./components/UploadButton";
 import { BorrowList } from "./components/BorrowList";
-import { fetchFilesFromGas, renameFileViaGas, saveMetadataToGas, fetchMetadataFromGas, getSettingsFromGas } from "./api";
+import { fetchFilesFromGas, renameFileViaGas, saveMetadataToGas, fetchMetadataFromGas, getSettingsFromGas, saveSettingsToGas } from "./api";
 import { AlertCircle, RefreshCw, Menu, BookOpen, List, Inbox, Library, LogOut } from "lucide-react";
 import { DEFAULT_SLIDES } from "./components/SliderConfig";
+import { DEFAULT_GAS_CONFIG } from "./defaultConfig";
 
 import { Login } from "./components/Login";
-import { SystemSetup } from "./components/SystemSetup";
 
 import { getDriveImageUrl } from "./utils";
 
@@ -27,8 +27,6 @@ export default function App() {
 
   const lastActivityRef = useRef<number>(Date.now());
   const [timeoutMessage, setTimeoutMessage] = useState<string>("");
-
-  import { DEFAULT_GAS_CONFIG } from "./defaultConfig";
 
   const [config, setConfig] = useState<GasConfig>(() => {
     const saved = localStorage.getItem("gasConfig");
@@ -157,61 +155,123 @@ export default function App() {
   }, [isAuthenticated, config.adminTimeoutMinutes]);
 
   useEffect(() => {
-    if (config.gasUrl && config.ebookFolderId && !hasInitialLoad && !isLoading) {
+    // Trigger initial load as soon as we have a GAS URL (IDs may be provided by the spreadsheet connected to GAS)
+    if (config.gasUrl && !hasInitialLoad && !isLoading) {
       setHasInitialLoad(true);
       loadFiles();
     }
-  }, [config.gasUrl, config.ebookFolderId, hasInitialLoad]);
+  }, [config.gasUrl, hasInitialLoad]);
 
   const loadFiles = async () => {
-    if (!config.gasUrl || !config.ebookFolderId) {
-      setError("Silakan konfigurasi URL Apps Script dan Folder ID di Pengaturan terlebih dahulu.");
+    if (!config.gasUrl) {
+      setError("Silakan konfigurasi URL Apps Script terlebih dahulu.");
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch settings first
+      // Work with a local copy so subsequent setConfig doesn't affect this run unexpectedly
+      let finalConfig = { ...config };
+
+      // Fetch settings first (GAS can provide authoritative folder IDs & sheetId)
       try {
-        const settingsResponse = await getSettingsFromGas(config);
+        const settingsResponse = await getSettingsFromGas(finalConfig);
         if (settingsResponse.success && settingsResponse.settings) {
           const parsedSettings = JSON.parse(settingsResponse.settings);
-          if (parsedSettings.libraryName || parsedSettings.libraryLogoUrl) {
-            setConfig(prev => ({
-              ...prev,
-              libraryName: parsedSettings.libraryName || prev.libraryName,
-              libraryLogoUrl: parsedSettings.libraryLogoUrl || prev.libraryLogoUrl,
-              libraryLogoId: parsedSettings.libraryLogoId || prev.libraryLogoId
-            }));
-          }
-          if (parsedSettings.sliderItems) {
-            try {
-              const parsedSlides = JSON.parse(parsedSettings.sliderItems);
-              if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
-                setSliderItems(parsedSlides);
+
+          // If spreadsheet returned an empty object or no keys, treat it as "not configured"
+          const isEmptySettings = !parsedSettings || Object.keys(parsedSettings).length === 0;
+
+          if (!isEmptySettings) {
+            // Merge IDs and other settings into finalConfig
+            finalConfig = {
+              ...finalConfig,
+              ebookFolderId: parsedSettings.ebookFolderId || finalConfig.ebookFolderId,
+              coverFolderId: parsedSettings.coverFolderId || finalConfig.coverFolderId,
+              sheetId: parsedSettings.sheetId || finalConfig.sheetId,
+              sheetIdOffline: parsedSettings.sheetIdOffline || finalConfig.sheetIdOffline,
+              libraryName: parsedSettings.libraryName || finalConfig.libraryName,
+              libraryLogoUrl: parsedSettings.libraryLogoUrl || finalConfig.libraryLogoUrl,
+              libraryLogoId: parsedSettings.libraryLogoId || finalConfig.libraryLogoId,
+              adminTimeoutMinutes: parsedSettings.adminTimeoutMinutes !== undefined ? parsedSettings.adminTimeoutMinutes : finalConfig.adminTimeoutMinutes
+            };
+
+            // Persist merged config to state so UI reflects fetched IDs
+            setConfig(prev => ({ ...prev, ...{
+              ebookFolderId: finalConfig.ebookFolderId,
+              coverFolderId: finalConfig.coverFolderId,
+              sheetId: finalConfig.sheetId,
+              sheetIdOffline: finalConfig.sheetIdOffline,
+              libraryName: finalConfig.libraryName,
+              libraryLogoUrl: finalConfig.libraryLogoUrl,
+              libraryLogoId: finalConfig.libraryLogoId,
+              adminTimeoutMinutes: finalConfig.adminTimeoutMinutes
+            }}));
+
+            if (parsedSettings.sliderItems) {
+              try {
+                const parsedSlides = JSON.parse(parsedSettings.sliderItems);
+                if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
+                  setSliderItems(parsedSlides);
+                }
+              } catch (e) {
+                console.warn("Failed to parse slider items on start", e);
               }
-            } catch (e) {
-              console.warn("Failed to parse slider items on start", e);
             }
-          }
-          if (parsedSettings.showSlider !== undefined) {
-            setShowSlider(parsedSettings.showSlider === "true" || parsedSettings.showSlider === true);
+            if (parsedSettings.showSlider !== undefined) {
+              setShowSlider(parsedSettings.showSlider === "true" || parsedSettings.showSlider === true);
+            }
+          } else {
+            // No settings present in spreadsheet: persist current (baked-in) config to spreadsheet so other devices can load it
+            try {
+              const settingsToSave = {
+                libraryName: finalConfig.libraryName || 'Perpustakaan Digital',
+                libraryLogoUrl: finalConfig.libraryLogoUrl || '',
+                libraryLogoId: finalConfig.libraryLogoId || '',
+                ebookFolderId: finalConfig.ebookFolderId || '',
+                coverFolderId: finalConfig.coverFolderId || '',
+                sheetId: finalConfig.sheetId || '',
+                sheetIdOffline: finalConfig.sheetIdOffline || finalConfig.sheetId || '',
+                adminTimeoutMinutes: finalConfig.adminTimeoutMinutes !== undefined ? finalConfig.adminTimeoutMinutes : 15,
+                sliderItems: sliderItems ? JSON.stringify(sliderItems) : JSON.stringify([]),
+                showSlider: showSlider !== undefined ? String(showSlider) : 'true'
+              };
+
+              await saveSettingsToGas(finalConfig, settingsToSave);
+              // After saving, persist to state to make sure subsequent loads read the same
+              setConfig(prev => ({ ...prev, ...{
+                ebookFolderId: finalConfig.ebookFolderId,
+                coverFolderId: finalConfig.coverFolderId,
+                sheetId: finalConfig.sheetId,
+                sheetIdOffline: finalConfig.sheetIdOffline
+              }}));
+            } catch (e) {
+              console.warn('Failed to write default settings to spreadsheet:', e);
+            }
           }
         }
       } catch (settingsError) {
         console.warn("Could not fetch settings from GAS:", settingsError);
       }
 
-      const response = await fetchFilesFromGas(config);
+      // Ensure ebookFolderId exists after attempting to fetch settings
+      if (!finalConfig.ebookFolderId) {
+        setError("Folder e-Book belum dikonfigurasi di spreadsheet. Silakan periksa konfigurasi di Apps Script / Spreadsheet.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Use finalConfig for subsequent fetches
+      const response = await fetchFilesFromGas(finalConfig);
       if (response.success && response.files) {
         setFiles(response.files);
       } else {
         setError(response.error || "Gagal mengambil file.");
       }
-      
+
       try {
-        const metadataResponse = await fetchMetadataFromGas(config);
+        const metadataResponse = await fetchMetadataFromGas(finalConfig);
         if (metadataResponse.success && metadataResponse.metadata) {
           const parsedMetadata = JSON.parse(metadataResponse.metadata);
           setMetadata(parsedMetadata);
@@ -338,19 +398,8 @@ const handleUpdateBook = async (fileId: string, title: string, category: string)
   // Only pass files to dashboard that are in the collection
   const collectionFiles = files.filter(f => metadata[f.id]?.status === 'collection');
 
-  const isConfigured = config.gasUrl && config.ebookFolderId && config.coverFolderId && config.sheetId;
-
-  if (!isConfigured) {
-    return (
-      <SystemSetup 
-        initialConfig={config}
-        onSave={(newConfig) => {
-          setConfig(newConfig);
-          setActiveTab('visitor');
-        }}
-      />
-    );
-  }
+  // When a GAS URL is provided, the app will attempt to pull folder/sheet IDs from the connected spreadsheet.
+  // Do not force showing a setup portal; users should be able to visit and the site will auto-load settings from GAS.
 
   if (activeTab === 'visitor') {
     return (

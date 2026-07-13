@@ -22,13 +22,11 @@ export function Settings({
   onSaveSlides,
   onToggleShowSlider
 }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState<'identity' | 'banner' | 'cloud' | 'sync' | 'security' | 'reset' | 'guide'>('identity');
-
+  const [activeTab, setActiveTab] = useState<'identity' | 'banner' | 'security' | 'reset' | 'guide'>('identity');
+ 
   const tabs = [
     { id: 'identity', label: 'Identitas & Visual', icon: LayoutDashboard, category: 'Umum' },
     { id: 'banner', label: 'Banner Promosi', icon: ImageIcon, category: 'Umum' },
-    { id: 'cloud', label: 'Koneksi Cloud', icon: Database, category: 'Sistem Database' },
-    { id: 'sync', label: 'Backup & Sinkronisasi', icon: Save, category: 'Sistem Database' },
     { id: 'security', label: 'Kredensial Admin', icon: Lock, category: 'Keamanan & Lanjutan' },
     { id: 'guide', label: 'Panduan Setup', icon: HelpCircle, category: 'Keamanan & Lanjutan' },
     { id: 'reset', label: 'Reset Sistem', icon: Trash2, category: 'Keamanan & Lanjutan' }
@@ -84,7 +82,7 @@ export function Settings({
       {/* Main Content Area */}
       <div className="flex-1 bg-slate-50/50 h-full overflow-hidden p-6">
         <div className="h-full">
-          {['identity', 'cloud', 'sync', 'security', 'reset'].includes(activeTab) && (
+          {['identity','security','reset'].includes(activeTab) && (
             <ConfigPanel 
               config={config} 
               onChange={setConfig}
