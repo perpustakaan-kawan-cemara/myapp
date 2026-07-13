@@ -14,7 +14,27 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.TEXT);
     }
 
-    var data = JSON.parse(e.postData.contents);
+    // Support both JSON POST (e.postData.contents) and form-urlencoded POST (e.parameter.payload)
+    var data = null;
+    try {
+      if (e && e.postData && e.postData.contents) {
+        data = JSON.parse(e.postData.contents);
+      }
+    } catch (err) {
+      data = null;
+    }
+    if (!data && e && e.parameter && e.parameter.payload) {
+      try {
+        data = JSON.parse(e.parameter.payload);
+      } catch (err) {
+        data = null;
+      }
+    }
+
+    if (!data) {
+      return returnJson({ success: false, error: 'No payload provided' });
+    }
+
     var action = data.action;
     
     // Helper to get or create a sheet
