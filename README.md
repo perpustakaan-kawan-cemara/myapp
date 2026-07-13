@@ -1,20 +1,19 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Drive Online Library
 
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/bfde85ab-591f-492a-8371-a56ccddf49d4
+An online library application that connects to Google Drive via Apps Script to manage and read your PDF books collection.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+   ```bash
+   npm install
+   ```
+2. Configure your environment:
+   - Copy `.env.example` to `.env.local`
+   - Update the `APP_URL` if needed
 3. Run the app:
-   `npm run dev`
+   ```bash
+   npm run dev
+   ```
