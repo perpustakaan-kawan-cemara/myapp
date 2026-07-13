@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+html { font-size: 12px; }
+@media (min-width: 768px) { html { font-size: 13px; } }
+@media (min-width: 1024px) { html { font-size: 14px; } }
+
+*::-webkit-scrollbar {
+  display: none;
+}
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

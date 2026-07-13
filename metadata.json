@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Drive Online Library",
+  "description": "An online library application that connects to Google Drive via Apps Script to manage and read your PDF books collection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
