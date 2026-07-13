@@ -244,3 +244,499 @@ function doPost(e) {
       var metadata = {};
       
       var dataRangeOnline = sheetOnline.getDataRange();
+      var valuesOnline = dataRangeOnline.getValues();
+      if (valuesOnline.length > 1) {
+        for (var i = 1; i < valuesOnline.length; i++) {
+          var row = valuesOnline[i];
+          metadata[row[0]] = {
+            id: row[0],
+            status: row[1],
+            category: row[2],
+            title: row[3],
+            addedToCollectionAt: row[4],
+            isOffline: false,
+            author: row[5] || '',
+            publisher: row[6] || '',
+            year: row[7] || '',
+            stock: row[8] || 0,
+            location: row[9] || '',
+            coverUrl: row[10] || ''
+          };
+        }
+      }
+
+      var dataRangeOffline = sheetOffline.getDataRange();
+      var valuesOffline = dataRangeOffline.getValues();
+      if (valuesOffline.length > 1) {
+        for (var i = 1; i < valuesOffline.length; i++) {
+          var row = valuesOffline[i];
+          metadata[row[0]] = {
+            id: row[0],
+            status: row[1],
+            category: row[2],
+            title: row[3],
+            addedToCollectionAt: row[4],
+            isOffline: true,
+            author: row[6] || '',
+            publisher: row[7] || '',
+            year: row[8] || '',
+            stock: row[9] || 0,
+            location: row[10] || '',
+            coverUrl: row[11] || ''
+          };
+        }
+      }
+      
+      // Also try to read from legacy 'BookData' if it exists, to migrate
+      var legacySheet = spreadsheetOnline.getSheetByName('BookData');
+      if (legacySheet) {
+        var legacyValues = legacySheet.getDataRange().getValues();
+        if (legacyValues.length > 1) {
+          for (var i = 1; i < legacyValues.length; i++) {
+            var row = legacyValues[i];
+            if (!metadata[row[0]]) { // Only add if not already in new sheets
+              metadata[row[0]] = {
+                id: row[0],
+                status: row[1],
+                category: row[2],
+                title: row[3],
+                addedToCollectionAt: row[4],
+                isOffline: row[5] === true || row[5] === 'true' || row[5] === 'TRUE',
+                author: row[6] || '',
+                publisher: row[7] || '',
+                year: row[8] || '',
+                stock: row[9] || 0,
+                location: row[10] || '',
+                coverUrl: row[11] || ''
+              };
+            }
+          }
+        }
+      }
+      
+      return returnJson({
+        success: true,
+        metadata: JSON.stringify(metadata)
+      });
+    } else if (action === 'logVisitor') {
+      var sheetId = data.sheetId;
+      var userAgent = data.userAgent;
+      var timestamp = data.timestamp;
+      var nama = data.nama || "";
+      var jenisKelamin = data.jenisKelamin || "";
+      var tujuan = data.tujuan || "";
+      var member = data.member || "";
+      var kategoriUsia = data.kategoriUsia || "";
+      var pekerjaan = data.pekerjaan || "";
+      
+      if (!sheetId) {
+        return returnJson({
+          success: false,
+          error: "Sheet ID is required"
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetId);
+        var sheet = getOrCreateSheet(spreadsheet, 'VisitorLogs');
+        sheet.appendRow([
+          timestamp || new Date().toISOString(),
+          nama,
+          jenisKelamin,
+          tujuan,
+          member,
+          userAgent || "Unknown Device",
+          kategoriUsia,
+          pekerjaan
+        ]);
+        
+        return returnJson({
+          success: true
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    
+    } else if (action === 'getVisitorLogs') {
+      var sheetId = data.sheetId;
+      if (!sheetId) {
+        return returnJson({
+          success: false,
+          error: "Sheet ID is required"
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetId);
+        var sheet = getOrCreateSheet(spreadsheet, 'VisitorLogs');
+        
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+        var logs = [];
+        
+        if (values.length > 1) {
+          for (var i = 1; i < values.length; i++) {
+            var row = values[i];
+            var isLegacy = row.length === 2 || (row.length >= 6 && !row[5]);
+            if (isLegacy) {
+              logs.push({
+                timestamp: row[0],
+                nama: "-",
+                jenisKelamin: "-",
+                tujuan: "-",
+                member: "-",
+                userAgent: row[1] || "-"
+              });
+            } else {
+              logs.push({
+                timestamp: row[0],
+                nama: row[1] || "",
+                jenisKelamin: row[2] || "",
+                tujuan: row[3] || "",
+                member: row[4] || "",
+                userAgent: row[5] || "",
+                kategoriUsia: row[6] || "",
+                pekerjaan: row[7] || ""
+              });
+            }
+          }
+        }
+        
+        return returnJson({
+          success: true,
+          visitorLogs: logs
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    } else if (action === 'logBorrow') {
+      var sheetId = data.sheetId;
+      var sheetIdOffline = data.sheetIdOffline || sheetId;
+      var timestamp = data.timestamp;
+      var namaPeminjam = data.namaPeminjam || "";
+      var jenisKelamin = data.jenisKelamin || "";
+      var alamatPeminjam = data.alamatPeminjam || "";
+      var namaBuku = data.namaBuku || "";
+      var nomorTelepon = data.nomorTelepon || "";
+      var durasiPeminjaman = data.durasiPeminjaman || "";
+      var status = data.status || "Dipinjam";
+      
+      if (!sheetIdOffline) {
+        return returnJson({
+          success: false,
+          error: "Sheet ID is required"
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetIdOffline);
+        var sheet = getOrCreateSheet(spreadsheet, 'BorrowLogs');
+        sheet.appendRow([
+          timestamp || new Date().toISOString(),
+          namaPeminjam,
+          jenisKelamin,
+          alamatPeminjam,
+          namaBuku,
+          nomorTelepon,
+          durasiPeminjaman,
+          status
+        ]);
+        
+        return returnJson({
+          success: true
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+     
+    } else if (action === 'getBorrowLogs') {
+      var sheetId = data.sheetId;
+      var sheetIdOffline = data.sheetIdOffline || sheetId;
+      if (!sheetIdOffline) {
+        return returnJson({
+          success: false,
+          error: "Sheet ID is required"
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetIdOffline);
+        var sheet = getOrCreateSheet(spreadsheet, 'BorrowLogs');
+        
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+        var logs = [];
+        
+        if (values.length > 1) {
+          for (var i = 1; i < values.length; i++) {
+            var row = values[i];
+            logs.push({
+              timestamp: row[0],
+              namaPeminjam: row[1] || "",
+              jenisKelamin: row[2] || "",
+              alamatPeminjam: row[3] || "",
+              namaBuku: row[4] || "",
+              nomorTelepon: row[5] || "",
+              durasiPeminjaman: row[6] || "",
+              status: row[7] || ""
+            });
+          }
+        }
+        
+        return returnJson({
+          success: true,
+          borrowLogs: logs
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    } else if (action === 'updateBorrowStatus') {
+      var sheetId = data.sheetId;
+      var sheetIdOffline = data.sheetIdOffline || sheetId;
+      var timestamp = data.timestamp;
+      var namaPeminjam = data.namaPeminjam;
+      var newStatus = data.status;
+      
+      if (!sheetIdOffline) {
+        return returnJson({
+          success: false,
+          error: "Sheet ID is required"
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetIdOffline);
+        var sheet = getOrCreateSheet(spreadsheet, 'BorrowLogs');
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+        var found = false;
+        
+        for (var i = 1; i < values.length; i++) {
+          var rowTime = values[i][0];
+          var rowName = values[i][1];
+          var rowTimeStr = rowTime instanceof Date ? rowTime.toISOString() : rowTime.toString();
+          
+          if (rowName === namaPeminjam && (rowTimeStr === timestamp || new Date(rowTime).getTime() === new Date(timestamp).getTime())) {
+            sheet.getRange(i + 1, 8).setValue(newStatus);
+            found = true;
+            break;
+          }
+        }
+        
+        return returnJson({
+          success: found,
+          error: found ? undefined : "Data peminjaman tidak ditemukan di Spreadsheet"
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    } else if (action === 'saveSettings') {
+      var sheetId = data.sheetId;
+      var settingsStr = data.settings;
+      
+      if (!sheetId) {
+        try {
+          var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+          if (activeSpreadsheet) {
+            sheetId = activeSpreadsheet.getId();
+          }
+        } catch (e) {}
+        
+        if (!sheetId) {
+          try {
+            sheetId = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+          } catch (e) {}
+        }
+      }
+      
+      if (!sheetId) {
+        return returnJson({
+          success: false,
+          error: "Spreadsheet ID tidak ditemukan. Harap sertakan sheetId saat menyimpan."
+        });
+      }
+      
+      // Simpan backup ke Script Properties
+      try {
+        PropertiesService.getScriptProperties().setProperty("SPREADSHEET_ID", sheetId);
+      } catch (e) {}
+      
+      var spreadsheet = SpreadsheetApp.openById(sheetId);
+      var sheet = getOrCreateSheet(spreadsheet, 'Config');
+      var settings = JSON.parse(settingsStr);
+      
+      // Clear old data and write new
+      sheet.clear();
+      sheet.appendRow(['Key', 'Value']);
+      sheet.getRange("A1:B1").setFontWeight("bold");
+      
+      var rows = [];
+      for (var key in settings) {
+        rows.push([key, settings[key]]);
+      }
+      
+      if (rows.length > 0) {
+        sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+      }
+      
+      return returnJson({
+        success: true,
+        sheetId: sheetId
+      });
+      
+    } else if (action === 'getSettings') {
+      var sheetId = data.sheetId;
+      if (!sheetId) {
+        try {
+          var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+          if (activeSpreadsheet) {
+            sheetId = activeSpreadsheet.getId();
+          }
+        } catch (e) {}
+        
+        if (!sheetId) {
+          try {
+            sheetId = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+          } catch (e) {}
+        }
+      }
+      
+      if (!sheetId) {
+        return returnJson({
+          success: true,
+          settings: "{}",
+          message: "Belum ada konfigurasi. ID Spreadsheet Utama tidak terdeteksi."
+        });
+      }
+      
+      try {
+        var spreadsheet = SpreadsheetApp.openById(sheetId);
+        var sheet = getOrCreateSheet(spreadsheet, 'Config');
+        
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+        
+        var settings = {};
+        if (values.length > 1) {
+          for (var i = 1; i < values.length; i++) {
+            var row = values[i];
+            if (row[0]) {
+              settings[row[0]] = row[1];
+            }
+          }
+        }
+        
+        // Pastikan sheetId tersimpan juga di settings yang dikembalikan
+        settings.sheetId = sheetId;
+        
+        return returnJson({
+          success: true,
+          settings: JSON.stringify(settings)
+        });
+      } catch (err) {
+        return returnJson({
+          success: true,
+          settings: "{}",
+          error: err.toString()
+        });
+      }
+    } else if (action === "authenticateAdmin") {
+      try {
+        var props = PropertiesService.getScriptProperties();
+        var storedUser = props.getProperty("ADMIN_USER");
+        var storedPass = props.getProperty("ADMIN_PASS");
+        
+        if (!storedUser || !storedPass) {
+          // Initialize if empty
+          props.setProperty("ADMIN_USER", "admin");
+          props.setProperty("ADMIN_PASS", "12345");
+          storedUser = "admin";
+          storedPass = "12345";
+        }
+        
+        var providedUser = data.username;
+        var providedPass = data.password;
+        
+        if (providedUser === storedUser && providedPass === storedPass) {
+          return returnJson({
+            success: true,
+            authenticated: true
+          });
+        } else {
+          return returnJson({
+            success: true,
+            authenticated: false
+          });
+        }
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    } else if (action === "changeAdminPassword") {
+      try {
+        var props = PropertiesService.getScriptProperties();
+        var storedUser = props.getProperty("ADMIN_USER") || "admin";
+        var storedPass = props.getProperty("ADMIN_PASS") || "12345";
+        
+        var oldPass = data.oldPassword;
+        var newUsername = data.newUsername || "admin";
+        var newPassword = data.newPassword;
+        
+        if (!newPassword || newPassword.trim() === "") {
+          return returnJson({
+            success: false,
+            error: "Password baru tidak boleh kosong"
+          });
+        }
+        
+        if (oldPass !== storedPass) {
+          return returnJson({
+            success: false,
+            error: "Password lama tidak sesuai"
+          });
+        }
+        
+        props.setProperty("ADMIN_USER", newUsername);
+        props.setProperty("ADMIN_PASS", newPassword);
+        
+        return returnJson({
+          success: true,
+          message: "Kredensial admin (username/password) berhasil diperbarui!"
+        });
+      } catch (err) {
+        return returnJson({
+          success: false,
+          error: err.toString()
+        });
+      }
+    } else {
+      return returnJson({
+        success: false,
+        error: "Unknown action"
+      });
+    }
+  
+  } catch (error) {
+    return ContentService.createTextOutput(Utilities.base64Encode(JSON.stringify({
+      success: false,
+      error: error.toString()
+    }))).setMimeType(ContentService.MimeType.TEXT);
+  }
+}
