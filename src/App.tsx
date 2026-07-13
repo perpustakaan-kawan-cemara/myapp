@@ -28,9 +28,22 @@ export default function App() {
   const lastActivityRef = useRef<number>(Date.now());
   const [timeoutMessage, setTimeoutMessage] = useState<string>("");
 
+  import { DEFAULT_GAS_CONFIG } from "./defaultConfig";
+
   const [config, setConfig] = useState<GasConfig>(() => {
     const saved = localStorage.getItem("gasConfig");
-    return saved ? JSON.parse(saved) : { gasUrl: "", ebookFolderId: "", coverFolderId: "", sheetId: "", sheetIdOffline: "" };
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Invalid gasConfig in localStorage, falling back to defaults');
+      }
+    }
+    // Use baked-in defaults for first-time visitors or after a reset
+    return {
+      ...DEFAULT_GAS_CONFIG,
+      sheetIdOffline: DEFAULT_GAS_CONFIG.sheetId || "",
+    };
   });
 
   const [metadata, setMetadata] = useState<Record<string, BookMetadata>>(() => {
