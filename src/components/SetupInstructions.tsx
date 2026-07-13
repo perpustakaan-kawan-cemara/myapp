@@ -18,7 +18,27 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.TEXT);
     }
 
-    var data = JSON.parse(e.postData.contents);
+    // Support both JSON POST (e.postData.contents) and form-urlencoded POST (e.parameter.payload)
+    var data = null;
+    try {
+      if (e && e.postData && e.postData.contents) {
+        data = JSON.parse(e.postData.contents);
+      }
+    } catch (err) {
+      data = null;
+    }
+    if (!data && e && e.parameter && e.parameter.payload) {
+      try {
+        data = JSON.parse(e.parameter.payload);
+      } catch (err) {
+        data = null;
+      }
+    }
+
+    if (!data) {
+      return returnJson({ success: false, error: 'No payload provided' });
+    }
+
     var action = data.action;
     
     // Helper to get or create a sheet
@@ -26,7 +46,10 @@ function doPost(e) {
       var sheet = spreadsheet.getSheetByName(sheetName);
       if (!sheet) {
         sheet = spreadsheet.insertSheet(sheetName);
-        if (sheetName === 'EbookData') {
+        if (sheetName === 'BookData') {
+          sheet.appendRow(['File ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan', 'Offline', 'Penulis', 'Penerbit', 'Tahun', 'Stok', 'Lokasi', 'URL Cover']);
+          sheet.getRange("A1:L1").setFontWeight("bold");
+        } else if (sheetName === 'EbookData') {
           sheet.appendRow(['File ID', 'Status', 'Kategori', 'Judul', 'Waktu Ditambahkan']);
           sheet.getRange("A1:E1").setFontWeight("bold");
         } else if (sheetName === 'PhysicalBookData') {
@@ -73,9 +96,22 @@ function doPost(e) {
     } else if (action === 'renameFile') {
       var fileId = data.fileId;
       var newName = data.newName;
+      var sheetId = data.sheetId;
        
       var file = DriveApp.getFileById(fileId);
+      var oldName = file.getName();
       file.setName(newName);
+      
+      // Log to spreadsheet if provided
+      if (sheetId) {
+        try {
+          var spreadsheet = SpreadsheetApp.openById(sheetId);
+          var sheet = getOrCreateSheet(spreadsheet, 'Logs');
+          sheet.appendRow([new Date(), fileId, oldName, newName, Session.getActiveUser().getEmail()]);
+        } catch (sheetErr) {
+          // Ignore sheet errors if sheet is inaccessible
+        }
+      }
       
       return returnJson({
         success: true,
